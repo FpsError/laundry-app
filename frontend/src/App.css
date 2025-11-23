@@ -149,6 +149,34 @@ body {
     transform: translateY(0);
 }
 
+.toggle-section {
+    text-align: center;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.toggle-text {
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.toggle-link {
+    background: none;
+    border: none;
+    color: #10b981;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0;
+    margin-left: 4px;
+}
+
+.toggle-link:hover {
+    color: #059669;
+    text-decoration: underline;
+}
+
 .footer {
     text-align: center;
     color: #6b7280;
