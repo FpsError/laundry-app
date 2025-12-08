@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import './Dashboard.css';
+import './styles/Dashboard.css';
 import apiClient from './api/client.js';
 
 export default function Dashboard() {

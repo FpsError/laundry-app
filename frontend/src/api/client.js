@@ -67,10 +67,14 @@ class ApiClient {
 
   // Time Slots
   async getTimeSlots(date, pairId) {
-    const params = new URLSearchParams();
-    if (date) params.append('date', date);
-    if (pairId) params.append('pair_id', pairId);
-    return this.request(`/timeslots?${params}`);
+      const params = new URLSearchParams();
+      if (date) params.append('date', date);
+      if (pairId) params.append('pair_id', pairId);
+
+      console.log('Fetching timeslots from:', `/timeslots?${params}`);
+      const data = await this.request(`/timeslots?${params}`);
+      console.log('Timeslots response:', data);
+      return data;
   }
 
   async createTimeSlot(slotData) {
