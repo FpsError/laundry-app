@@ -3,8 +3,6 @@ import apiClient from '../../api/client';
 
 const AdminBookings = () => {
     const [bookings, setBookings] = useState([]);
-    const [slots, setSlots] = useState({});
-    const [users, setUsers] = useState({});
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState('all');
     const [filterDate, setFilterDate] = useState(() => {
@@ -22,24 +20,8 @@ const AdminBookings = () => {
         setLoading(true);
         try {
             const bookingsData = await apiClient.getBookings();
-
-            // Fetch slot details for each booking
-            const slotPromises = bookingsData.map(booking =>
-                fetch(`/api/timeslots?slot_id=${booking.slot_id}`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                }).then(r => r.json())
-            );
-
-            const slotsData = await Promise.all(slotPromises);
-            const slotsMap = {};
-            slotsData.forEach((slotArray, idx) => {
-                if (slotArray && slotArray.length > 0) {
-                    slotsMap[bookingsData[idx].slot_id] = slotArray[0];
-                }
-            });
-
+            // Backend already includes slot data in each booking
             setBookings(bookingsData);
-            setSlots(slotsMap);
         } catch (error) {
             console.error('Failed to fetch bookings:', error);
             setMessage({ type: 'error', text: 'Failed to load bookings' });
@@ -76,7 +58,8 @@ const AdminBookings = () => {
             'received': { bg: '#cce5ff', text: '#004085' },
             'washing': { bg: '#fff3cd', text: '#856404' },
             'completed': { bg: '#d1ecf1', text: '#0c5460' },
-            'cancelled': { bg: '#f8d7da', text: '#721c24' }
+            'cancelled': { bg: '#f8d7da', text: '#721c24' },
+            'no_show': { bg: '#f8d7da', text: '#721c24' }
         };
         return colors[status] || { bg: '#e2e3e5', text: '#383d41' };
     };
@@ -104,16 +87,12 @@ const AdminBookings = () => {
 
     const filteredBookings = bookings.filter(booking => {
         if (filterStatus !== 'all' && booking.status !== filterStatus) return false;
-        if (filterDate) {
-            const slot = slots[booking.slot_id];
-            if (!slot || slot.date !== filterDate) return false;
-        }
+        if (filterDate && booking.date !== filterDate) return false;
         return true;
     });
 
     const groupedBookings = filteredBookings.reduce((acc, booking) => {
-        const slot = slots[booking.slot_id];
-        const date = slot?.date || 'Unknown';
+        const date = booking.date || 'Unknown';
         if (!acc[date]) acc[date] = [];
         acc[date].push(booking);
         return acc;
@@ -170,6 +149,7 @@ const AdminBookings = () => {
                         <option value="washing">Washing</option>
                         <option value="completed">Completed</option>
                         <option value="cancelled">Cancelled</option>
+                        <option value="no_show">No Show</option>
                     </select>
                 </div>
 
@@ -249,7 +229,6 @@ const AdminBookings = () => {
 
                         <div style={{ display: 'grid', gap: '16px' }}>
                             {groupedBookings[date].map(booking => {
-                                const slot = slots[booking.slot_id];
                                 const statusColor = getStatusColor(booking.status);
 
                                 return (
@@ -309,7 +288,7 @@ const AdminBookings = () => {
                                                     Time Slot
                                                 </div>
                                                 <div style={{ fontWeight: '500' }}>
-                                                    {slot ? `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}` : 'N/A'}
+                                                    {booking.start_time ? `${formatTime(booking.start_time)} - ${formatTime(booking.end_time)}` : 'N/A'}
                                                 </div>
                                             </div>
 
@@ -322,7 +301,7 @@ const AdminBookings = () => {
                                                     Machine Pair
                                                 </div>
                                                 <div style={{ fontWeight: '500' }}>
-                                                    Pair {slot?.pair_id || 'N/A'}
+                                                    Pair {booking.pair_id || 'N/A'}
                                                 </div>
                                             </div>
 
@@ -335,7 +314,7 @@ const AdminBookings = () => {
                                                     Load Type
                                                 </div>
                                                 <div style={{ fontWeight: '500', textTransform: 'capitalize' }}>
-                                                    {booking.load_type}
+                                                    {booking.load_type?.replace(/_/g, ' ')}
                                                 </div>
                                             </div>
 
@@ -353,28 +332,45 @@ const AdminBookings = () => {
                                             </div>
                                         </div>
 
-                                        {booking.status !== 'completed' && booking.status !== 'cancelled' && (
+                                        {booking.status !== 'completed' && booking.status !== 'cancelled' && booking.status !== 'no_show' && (
                                             <div style={{
                                                 display: 'flex',
                                                 gap: '8px',
                                                 paddingTop: '16px',
-                                                borderTop: '1px solid #e0e0e0'
+                                                borderTop: '1px solid #e0e0e0',
+                                                flexWrap: 'wrap'
                                             }}>
                                                 {booking.status === 'confirmed' && (
-                                                    <button
-                                                        onClick={() => handleUpdateStatus(booking.id, 'received')}
-                                                        style={{
-                                                            padding: '8px 16px',
-                                                            backgroundColor: '#007bff',
-                                                            color: 'white',
-                                                            border: 'none',
-                                                            borderRadius: '4px',
-                                                            cursor: 'pointer',
-                                                            fontSize: '14px'
-                                                        }}
-                                                    >
-                                                        Mark as Received
-                                                    </button>
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleUpdateStatus(booking.id, 'received')}
+                                                            style={{
+                                                                padding: '8px 16px',
+                                                                backgroundColor: '#007bff',
+                                                                color: 'white',
+                                                                border: 'none',
+                                                                borderRadius: '4px',
+                                                                cursor: 'pointer',
+                                                                fontSize: '14px'
+                                                            }}
+                                                        >
+                                                            Mark as Received
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleUpdateStatus(booking.id, 'no_show')}
+                                                            style={{
+                                                                padding: '8px 16px',
+                                                                backgroundColor: '#ff8c00',
+                                                                color: 'white',
+                                                                border: 'none',
+                                                                borderRadius: '4px',
+                                                                cursor: 'pointer',
+                                                                fontSize: '14px'
+                                                            }}
+                                                        >
+                                                            Mark as No Show
+                                                        </button>
+                                                    </>
                                                 )}
 
                                                 {booking.status === 'received' && (

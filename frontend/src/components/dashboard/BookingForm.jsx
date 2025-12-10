@@ -67,12 +67,13 @@ const BookingForm = ({ onBookingComplete }) => {
             const result = await createBooking(bookingData);
 
             if (result.success) {
-                console.log('SUCCESS BRANCH - result.data:', result.data);
-                console.log('Checking waitlist:', result.data?.waitlist);
-                // Check if added to waitlist
+                console.log('SUCCESS! Full result:', JSON.stringify(result, null, 2));
+                console.log('result.data:', result.data);
+                console.log('result.data.waitlist:', result.data?.waitlist);
+
                 if (result.data?.waitlist) {
+                    console.log('SHOULD REDIRECT NOW');
                     window.location.hash = '#waitlist';
-                    return;
                 } else {
                     setBookingMessage('✅ ' + (result.message || 'Booking successful!'));
                     setTimeout(() => {

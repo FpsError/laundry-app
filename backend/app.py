@@ -181,7 +181,10 @@ def login():
             'id': user.id,
             'email': user.email,
             'role': user.role.value,
-            'full_name': user.full_name
+            'full_name': user.full_name,
+            'phone': user.phone,
+            'student_id': user.student_id,
+            'created_at': user.created_at.isoformat() if user.created_at else None
         }
     })
 

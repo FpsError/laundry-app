@@ -14,44 +14,20 @@ const Profile = ({ user: propUser }) => {
     const [updateMessage, setUpdateMessage] = useState(null);
 
     useEffect(() => {
-        // If user prop is provided and has data, use it
-        if (propUser && propUser.id) {
-            setUser(propUser);
-            setEditForm({
-                full_name: propUser.full_name || '',
-                phone: propUser.phone || ''
-            });
-            setLoading(false);
-            return;
-        }
-
-        // Otherwise, fetch user data from API or localStorage
+        //fetch user data from API or localStorage
         fetchUserData();
     }, [propUser]);
 
     const fetchUserData = async () => {
         try {
-            // Try to get user from localStorage first (saved during login)
-            const storedUser = localStorage.getItem('user');
-            if (storedUser) {
-                const userData = JSON.parse(storedUser);
-                setUser(userData);
-                setEditForm({
-                    full_name: userData.full_name || '',
-                    phone: userData.phone || ''
-                });
-                setLoading(false);
-                return;
-            }
-
-            // If not in localStorage, fetch from API
+            // Fetch from API to get complete user data
             const userData = await apiClient.getUserProfile();
             setUser(userData);
             setEditForm({
                 full_name: userData.full_name || '',
                 phone: userData.phone || ''
             });
-            // Save to localStorage for future use
+            // Update localStorage with complete data
             localStorage.setItem('user', JSON.stringify(userData));
         } catch (err) {
             console.error('Error fetching user data:', err);
