@@ -16,16 +16,19 @@ body {
     align-items: center;
     justify-content: center;
     padding: 20px;
+    position: relative;
+    overflow: hidden;
 }
 
-.signin-card {
-    background: white;
-    border-radius: 16px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-    padding: 40px;
+.auth-card {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(16, 185, 129, 0.15);
+    padding: 48px 40px;
     width: 100%;
-    max-width: 450px;
-    border: 1px solid #e8f5e9;
+    max-width: 440px;
+    border: 1px solid rgba(16, 185, 129, 0.1);
 }
 
 .logo-container {
@@ -42,7 +45,7 @@ body {
 
 .title {
     font-size: 28px;
-    font-weight: bold;
+    font-weight: 700;
     text-align: center;
     color: #1f2937;
     margin-bottom: 8px;
@@ -55,10 +58,10 @@ body {
     font-size: 15px;
 }
 
-.form-container {
+.auth-form {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 20px;
 }
 
 .input-group {
@@ -69,23 +72,29 @@ body {
 
 .input-group label {
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
     color: #374151;
 }
 
 .input-group input {
     width: 100%;
     padding: 12px 16px;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
+    border: 2px solid #e5e7eb;
+    border-radius: 10px;
     font-size: 15px;
     outline: none;
-    transition: all 0.2s;
+    transition: all 0.3s ease;
+    background-color: white;
 }
 
 .input-group input:focus {
     border-color: #10b981;
     box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.input-group input:disabled {
+    background-color: #f9fafb;
+    cursor: not-allowed;
 }
 
 .form-options {
@@ -100,7 +109,8 @@ body {
     align-items: center;
     gap: 8px;
     cursor: pointer;
-    color: #6b7280;
+    color: #4b5563;
+    user-select: none;
 }
 
 .checkbox-label input[type="checkbox"] {
@@ -114,10 +124,11 @@ body {
     background: none;
     border: none;
     color: #10b981;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
     font-size: 14px;
     padding: 0;
+    transition: all 0.2s;
 }
 
 .link-button:hover {
@@ -125,40 +136,53 @@ body {
     text-decoration: underline;
 }
 
-.signin-button {
+.link-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.auth-button {
     width: 100%;
-    background: #10b981;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     color: white;
     font-weight: 600;
     padding: 14px;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 16px;
     cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2);
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+    margin-top: 8px;
 }
 
-.signin-button:hover {
-    background: #059669;
-    box-shadow: 0 6px 12px rgba(16, 185, 129, 0.3);
-    transform: translateY(-1px);
+.auth-button:hover:not(:disabled) {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    transform: translateY(-2px);
 }
 
-.signin-button:active {
+.auth-button:active:not(:disabled) {
     transform: translateY(0);
+}
+
+.auth-button:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
 }
 
 .toggle-section {
     text-align: center;
-    margin-top: 20px;
-    padding-top: 20px;
+    margin-top: 24px;
+    padding-top: 24px;
     border-top: 1px solid #e5e7eb;
 }
 
 .toggle-text {
     color: #6b7280;
-    font-size: 14px;
+    font-size: 15px;
 }
 
 .toggle-link {
@@ -167,30 +191,48 @@ body {
     color: #10b981;
     font-weight: 600;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 15px;
     padding: 0;
     margin-left: 4px;
+    transition: all 0.2s;
 }
 
-.toggle-link:hover {
+.toggle-link:hover:not(:disabled) {
     color: #059669;
     text-decoration: underline;
 }
 
-.footer {
-    text-align: center;
-    color: #6b7280;
-    font-size: 13px;
-    margin-top: 24px;
+.toggle-link:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+/* Loading spinner */
+.spinner-small {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
 /* Responsive design */
 @media (max-width: 500px) {
-    .signin-card {
-        padding: 30px 24px;
+    .auth-card {
+        padding: 32px 24px;
     }
 
     .title {
         font-size: 24px;
+    }
+
+    .subtitle {
+        font-size: 14px;
     }
 }

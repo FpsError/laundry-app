@@ -688,8 +688,17 @@
 }
 
 .slot-full {
-    opacity: 0.6;
     cursor: not-allowed;
+}
+
+.slot-full .slot-header,
+.slot-full .slot-info {
+    opacity: 0.6;
+}
+
+.slot-full .btn-book {
+    opacity: 1;
+    cursor: pointer;
 }
 
 .slot-pair {

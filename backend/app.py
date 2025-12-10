@@ -187,6 +187,7 @@ def login():
 
 
 # Time Slots Routes
+
 @app.route('/api/timeslots', methods=['GET'])
 @token_required
 def get_timeslots(current_user):
@@ -203,17 +204,26 @@ def get_timeslots(current_user):
     slots = query.all()
     now = datetime.now()
 
-    # Filter out slots that are in the past or less than 2 hours from now
     available_slots = []
     for slot in slots:
-        # If slot is today, check if it's at least 2 hours from now
-        if slot.date == now.date():
-            time_until_slot = (slot.start_time - now).total_seconds() / 3600  # hours
-            if time_until_slot < 2:
-                continue  # Skip slots less than 2 hours away
-        # Skip past dates
-        elif slot.date < now.date():
-            continue
+        # Refresh the slot from database to get current value
+        db.session.refresh(slot)
+        is_disabled = (slot.available_machines == 0)
+
+        # For STUDENTS: Apply TIME filters only, but include all slots (even full ones)
+        if current_user.role == UserRole.STUDENT:
+            # Skip ONLY disabled slots (admin manually disabled)
+            if is_disabled:
+                print(f"Skipping disabled slot {slot.id} for student")
+                continue
+
+            # Skip slots that are in the past or less than 2 hours from now
+            if slot.date == now.date():
+                time_until_slot = (slot.start_time - now).total_seconds() / 3600  # hours
+                if time_until_slot < 2:
+                    continue
+            elif slot.date < now.date():
+                continue
 
         # Calculate actual available machines based on confirmed bookings
         confirmed_bookings = Booking.query.filter_by(
@@ -223,19 +233,29 @@ def get_timeslots(current_user):
         ).all()
 
         total_machines_used = sum(booking.machines_used for booking in confirmed_bookings)
-        actual_available = 2 - total_machines_used  # 2 machines per pair
 
+        # IMPORTANT: If slot is disabled (available_machines = 0), keep it as 0
+        # Otherwise, calculate based on bookings
+        if is_disabled:
+            actual_available = 0
+        else:
+            actual_available = max(0, 2 - total_machines_used)
+
+        # CRITICAL: Include the slot even if actual_available is 0 (full)
+        # This allows students to see full slots and join waitlist
         available_slots.append({
             'id': slot.id,
             'pair_id': slot.pair_id,
             'date': slot.date.isoformat(),
             'start_time': slot.start_time.isoformat(),
             'end_time': slot.end_time.isoformat(),
-            'available_machines': max(0, actual_available)
+            'available_machines': actual_available,
+            'is_disabled': is_disabled,
+            'is_full': actual_available == 0 and not is_disabled  # New field to distinguish full vs disabled
         })
 
+    print(f"Returning {len(available_slots)} slots for {current_user.role.value}")
     return jsonify(available_slots)
-
 
 @app.route('/api/timeslots/<int:slot_id>', methods=['DELETE'])
 @token_required
@@ -260,6 +280,7 @@ def delete_timeslot(current_user, slot_id):
     return jsonify({'message': 'Time slot deleted successfully'})
 
 
+
 @app.route('/api/timeslots/<int:slot_id>/disable', methods=['PUT'])
 @token_required
 @role_required(UserRole.ADMIN)
@@ -267,10 +288,21 @@ def disable_timeslot(current_user, slot_id):
     """Admin can disable a time slot (set available_machines to 0)"""
     slot = TimeSlot.query.get_or_404(slot_id)
 
+    # Set available_machines to 0 to disable
     slot.available_machines = 0
-    db.session.commit()
 
-    return jsonify({'message': 'Time slot disabled successfully'})
+    try:
+        db.session.commit()
+        print(f"Slot {slot_id} disabled - available_machines set to 0")
+        return jsonify({
+            'message': 'Time slot disabled successfully',
+            'slot_id': slot_id,
+            'available_machines': 0
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error disabling slot {slot_id}: {str(e)}")
+        return jsonify({'message': f'Failed to disable slot: {str(e)}'}), 500
 
 
 @app.route('/api/timeslots/<int:slot_id>/enable', methods=['PUT'])
@@ -288,13 +320,18 @@ def enable_timeslot(current_user, slot_id):
     total_machines_used = sum(booking.machines_used for booking in confirmed_bookings)
     slot.available_machines = max(0, 2 - total_machines_used)
 
-    db.session.commit()
-
-    return jsonify({
-        'message': 'Time slot enabled successfully',
-        'available_machines': slot.available_machines
-    })
-
+    try:
+        db.session.commit()
+        print(f"Slot {slot_id} enabled - available_machines set to {slot.available_machines}")
+        return jsonify({
+            'message': 'Time slot enabled successfully',
+            'slot_id': slot_id,
+            'available_machines': slot.available_machines
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error enabling slot {slot_id}: {str(e)}")
+        return jsonify({'message': f'Failed to enable slot: {str(e)}'}), 500
 
 @app.route('/api/admin/regenerate-slots', methods=['POST'])
 @token_required
@@ -306,24 +343,53 @@ def manual_regenerate_slots(current_user):
 
 
 # Booking Routes
+# Replace your current get_bookings function with this:
+
 @app.route('/api/bookings', methods=['GET'])
 @token_required
 def get_bookings(current_user):
     if current_user.role == UserRole.STUDENT:
-        bookings = Booking.query.filter_by(user_id=current_user.id).all()
+        # Get bookings with time slot information for the current student
+        bookings = db.session.query(Booking, TimeSlot).join(
+            TimeSlot, Booking.slot_id == TimeSlot.id
+        ).filter(
+            Booking.user_id == current_user.id
+        ).order_by(
+            TimeSlot.date.desc(),
+            TimeSlot.start_time.desc()
+        ).all()
     else:
-        bookings = Booking.query.all()
+        # Get all bookings with time slot information for admin/attendant
+        bookings = db.session.query(Booking, TimeSlot).join(
+            TimeSlot, Booking.slot_id == TimeSlot.id
+        ).order_by(
+            TimeSlot.date.desc(),
+            TimeSlot.start_time.desc()
+        ).all()
 
-    return jsonify([{
-        'id': booking.id,
-        'ticket_id': booking.ticket_id,
-        'user_id': booking.user_id,
-        'slot_id': booking.slot_id,
-        'load_type': booking.load_type.value,
-        'status': booking.status.value,
-        'machines_used': booking.machines_used,
-        'created_at': booking.created_at.isoformat()
-    } for booking in bookings])
+    result = []
+    for booking, slot in bookings:
+        # Debug: Print slot data to see what we're getting
+        print(f"Slot {slot.id}: date={slot.date}, start={slot.start_time}, end={slot.end_time}")
+
+        result.append({
+            'id': booking.id,
+            'ticket_id': booking.ticket_id,
+            'user_id': booking.user_id,
+            'slot_id': booking.slot_id,
+            'load_type': booking.load_type.value,
+            'status': booking.status.value,
+            'machines_used': booking.machines_used,
+            'created_at': booking.created_at.isoformat() if booking.created_at else None,
+            # Add time slot information with proper null checking
+            'date': slot.date.isoformat() if slot.date else None,
+            'start_time': slot.start_time.isoformat() if slot.start_time else None,
+            'end_time': slot.end_time.isoformat() if slot.end_time else None,
+            'pair_id': slot.pair_id,
+            'machine_type': 'both'  # You can enhance this based on load_type if needed
+        })
+
+    return jsonify(result)
 
 
 @app.route('/api/bookings', methods=['POST'])
@@ -338,7 +404,7 @@ def create_booking(current_user):
     # Check if slot is in the past or less than 2 hours from now
     now = datetime.now()
     if slot.date == now.date():
-        time_until_slot = (slot.start_time - now).total_seconds() / 3600  # hours
+        time_until_slot = (slot.start_time - now).total_seconds() / 3600
         if time_until_slot < 2:
             return jsonify({'message': 'Cannot book slots less than 2 hours in advance'}), 400
     elif slot.date < now.date():
@@ -355,8 +421,17 @@ def create_booking(current_user):
     if existing_booking:
         return jsonify({'message': 'You already have a booking for this time slot'}), 400
 
+    # Check if user is already on waitlist for this slot
+    existing_waitlist = Waitlist.query.filter_by(
+        user_id=current_user.id,
+        slot_id=slot.id,
+        status=WaitlistStatus.WAITING
+    ).first()
+
+    if existing_waitlist:
+        return jsonify({'message': 'You are already on the waitlist for this time slot'}), 400
+
     # Check for bookings in adjacent time slots (10-minute buffer rule)
-    # Get all user's active bookings on the same date
     user_bookings_same_date = db.session.query(Booking).join(TimeSlot).filter(
         Booking.user_id == current_user.id,
         TimeSlot.date == slot.date,
@@ -367,43 +442,62 @@ def create_booking(current_user):
 
     for booking in user_bookings_same_date:
         booking_slot = booking.time_slot
-
-        # Check if new slot starts too soon after existing booking ends
-        # or if existing booking starts too soon after new slot ends
         time_after_existing = (slot.start_time - booking_slot.end_time).total_seconds() / 60
         time_after_new = (booking_slot.start_time - slot.end_time).total_seconds() / 60
 
-        # If either gap is less than 10 minutes (and positive), or if they overlap (negative), reject
         if (-1 < time_after_existing < buffer_minutes) or (-1 < time_after_new < buffer_minutes):
             return jsonify({
-                'message': f'Cannot book: You have another booking at {booking_slot.start_time.strftime("%I:%M %p")}. Please allow at least 10 minutes between bookings for setup and transition.'
+                'message': f'Cannot book: You have another booking at {booking_slot.start_time.strftime("%I:%M %p")}. Please allow at least 10 minutes between bookings.'
             }), 400
 
     load_type = LoadType(data.get('load_type', 'combined'))
     machines_needed = 2 if load_type != LoadType.COMBINED else 1
 
-    # Calculate actual available machines based on confirmed bookings
-    confirmed_bookings = Booking.query.filter_by(
-        slot_id=slot.id
-    ).filter(
+    # Calculate actual available machines
+    confirmed_bookings = Booking.query.filter_by(slot_id=slot.id).filter(
         Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.RECEIVED, BookingStatus.WASHING])
     ).all()
 
     total_machines_used = sum(booking.machines_used for booking in confirmed_bookings)
     actual_available = 2 - total_machines_used
 
+    # Check if slot is disabled
+    if slot.available_machines == 0:
+        return jsonify({'message': 'This time slot has been disabled by the administrator'}), 400
+
     if actual_available < machines_needed:
+        # Slot is full - add to waitlist
+
+        # Check waitlist cap (max 10 people per slot)
+        current_waitlist_count = Waitlist.query.filter_by(
+            slot_id=slot.id,
+            status=WaitlistStatus.WAITING
+        ).count()
+
+        if current_waitlist_count >= 10:
+            return jsonify({
+                'message': 'Waitlist is full for this time slot. Please try another slot.',
+                'waitlist_full': True
+            }), 400
+
         # Add to waitlist
-        position = Waitlist.query.filter_by(slot_id=slot.id, status=WaitlistStatus.WAITING).count() + 1
+        position = current_waitlist_count + 1
         waitlist_entry = Waitlist(
             user_id=current_user.id,
             slot_id=slot.id,
             position=position,
             load_type=load_type
         )
+
         db.session.add(waitlist_entry)
         db.session.commit()
-        return jsonify({'message': 'Time slot is fully booked. Added to waitlist', 'position': position}), 202
+
+        return jsonify({
+            'message': f'Time slot is full. You have been added to the waitlist.',
+            'waitlist': True,
+            'position': position,
+            'waitlist_id': waitlist_entry.id
+        }), 202
 
     # Create booking
     new_booking = Booking(
@@ -413,14 +507,11 @@ def create_booking(current_user):
         machines_used=machines_needed
     )
 
-    # Update slot available machines
-    slot.available_machines = actual_available - machines_needed
-
     db.session.add(new_booking)
     db.session.commit()
 
     return jsonify({
-        'message': 'Booking created',
+        'message': 'Booking created successfully',
         'ticket_id': new_booking.ticket_id,
         'booking': {
             'id': new_booking.id,
@@ -428,7 +519,6 @@ def create_booking(current_user):
             'status': new_booking.status.value
         }
     }), 201
-
 
 @app.route('/api/bookings/<int:booking_id>', methods=['PUT'])
 @token_required
@@ -471,7 +561,6 @@ def cancel_booking(current_user, booking_id):
     ).all()
 
     total_machines_used = sum(b.machines_used for b in confirmed_bookings if b.id != booking_id)
-    slot.available_machines = 2 - total_machines_used
 
     booking.status = BookingStatus.CANCELLED
 
@@ -487,10 +576,17 @@ def cancel_booking(current_user, booking_id):
 @app.route('/api/waitlist', methods=['GET'])
 @token_required
 def get_waitlist(current_user):
+    """Get user's waitlist entries"""
     if current_user.role == UserRole.STUDENT:
-        entries = Waitlist.query.filter_by(user_id=current_user.id, status=WaitlistStatus.WAITING).all()
+        entries = Waitlist.query.filter_by(
+            user_id=current_user.id,
+            status=WaitlistStatus.WAITING
+        ).order_by(Waitlist.created_at).all()
     else:
-        entries = Waitlist.query.filter_by(status=WaitlistStatus.WAITING).all()
+        # Admins see all waitlist entries
+        entries = Waitlist.query.filter_by(
+            status=WaitlistStatus.WAITING
+        ).order_by(Waitlist.slot_id, Waitlist.position).all()
 
     return jsonify([{
         'id': entry.id,
@@ -498,9 +594,78 @@ def get_waitlist(current_user):
         'slot_id': entry.slot_id,
         'position': entry.position,
         'load_type': entry.load_type.value,
+        'status': entry.status.value,
         'created_at': entry.created_at.isoformat()
     } for entry in entries])
 
+
+@app.route('/api/waitlist/<int:waitlist_id>', methods=['DELETE'])
+@token_required
+def leave_waitlist(current_user, waitlist_id):
+    """Remove user from waitlist"""
+    entry = Waitlist.query.get_or_404(waitlist_id)
+
+    # Check authorization
+    if current_user.role == UserRole.STUDENT and entry.user_id != current_user.id:
+        return jsonify({'message': 'Unauthorized'}), 403
+
+    slot_id = entry.slot_id
+    position_removed = entry.position
+
+    # Remove the entry
+    db.session.delete(entry)
+
+    # Update positions for remaining waitlist entries in the same slot
+    remaining_entries = Waitlist.query.filter_by(
+        slot_id=slot_id,
+        status=WaitlistStatus.WAITING
+    ).filter(
+        Waitlist.position > position_removed
+    ).all()
+
+    for remaining_entry in remaining_entries:
+        remaining_entry.position -= 1
+
+    db.session.commit()
+
+    return jsonify({'message': 'Successfully left the waitlist'})
+
+
+@app.route('/api/admin/waitlist', methods=['GET'])
+@token_required
+@role_required(UserRole.ADMIN, UserRole.ATTENDANT)
+def get_all_waitlist(current_user):
+    """Get all waitlist entries with details (admin/attendant only)"""
+    entries = Waitlist.query.filter_by(
+        status=WaitlistStatus.WAITING
+    ).order_by(Waitlist.slot_id, Waitlist.position).all()
+
+    result = []
+    for entry in entries:
+        slot = entry.time_slot
+        user = entry.user
+
+        result.append({
+            'id': entry.id,
+            'user': {
+                'id': user.id,
+                'full_name': user.full_name,
+                'email': user.email,
+                'student_id': user.student_id
+            },
+            'slot': {
+                'id': slot.id,
+                'date': slot.date.isoformat(),
+                'start_time': slot.start_time.isoformat(),
+                'end_time': slot.end_time.isoformat(),
+                'pair_id': slot.pair_id
+            },
+            'position': entry.position,
+            'load_type': entry.load_type.value,
+            'created_at': entry.created_at.isoformat()
+        })
+
+    return jsonify(result)
 
 # Machine Routes
 @app.route('/api/machines', methods=['GET'])
@@ -530,29 +695,128 @@ def update_machine(current_user, machine_id):
     return jsonify({'message': 'Machine updated'})
 
 
+# Add this endpoint to your app.py (after the auth routes):
+
+@app.route('/api/user/profile', methods=['GET'])
+@token_required
+def get_user_profile(current_user):
+    """Get current user's profile information"""
+    return jsonify({
+        'id': current_user.id,
+        'email': current_user.email,
+        'full_name': current_user.full_name,
+        'student_id': current_user.student_id,
+        'phone': current_user.phone,
+        'role': current_user.role.value,
+        'created_at': current_user.created_at.isoformat() if current_user.created_at else None
+    })
+
+
+@app.route('/api/user/profile', methods=['PUT'])
+@token_required
+def update_user_profile(current_user):
+    """Update current user's profile information"""
+    data = request.get_json()
+
+    # Update allowed fields
+    if 'full_name' in data:
+        current_user.full_name = data['full_name']
+    if 'phone' in data:
+        current_user.phone = data['phone']
+
+    # Students can't change their student_id, only admins can
+    if 'student_id' in data and current_user.role == UserRole.ADMIN:
+        current_user.student_id = data['student_id']
+
+    try:
+        db.session.commit()
+        return jsonify({
+            'message': 'Profile updated successfully',
+            'user': {
+                'id': current_user.id,
+                'email': current_user.email,
+                'full_name': current_user.full_name,
+                'student_id': current_user.student_id,
+                'phone': current_user.phone,
+                'role': current_user.role.value
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'Failed to update profile: {str(e)}'}), 500
+
+
 def promote_from_waitlist(slot_id):
-    """Promote waitlist entries when slots become available"""
+    """
+    Promote waitlist entries when slots become available
+    This is called when a booking is cancelled
+    """
     slot = TimeSlot.query.get(slot_id)
-    waitlist = Waitlist.query.filter_by(slot_id=slot_id, status=WaitlistStatus.WAITING).order_by(
-        Waitlist.position).all()
+    if not slot:
+        return
+
+    # Get waitlist entries ordered by position
+    waitlist = Waitlist.query.filter_by(
+        slot_id=slot_id,
+        status=WaitlistStatus.WAITING
+    ).order_by(Waitlist.position).all()
+
+    print(f"Processing waitlist for slot {slot_id}: {len(waitlist)} entries")
 
     for entry in waitlist:
+        # Check if slot still has available machines
+        if slot.available_machines == 0:
+            print(f"Slot {slot_id} is full or disabled, stopping promotion")
+            break
+
         machines_needed = 2 if entry.load_type != LoadType.COMBINED else 1
+
         if slot.available_machines >= machines_needed:
-            # Create booking
-            new_booking = Booking(
-                user_id=entry.user_id,
+            try:
+                # Create booking for this waitlist entry
+                new_booking = Booking(
+                    user_id=entry.user_id,
+                    slot_id=slot_id,
+                    load_type=entry.load_type,
+                    machines_used=machines_needed
+                )
+
+                # Update slot available machines
+                slot.available_machines -= machines_needed
+
+                # Mark waitlist entry as promoted
+                entry.status = WaitlistStatus.PROMOTED
+
+                db.session.add(new_booking)
+
+                print(f"Promoted waitlist entry {entry.id} to booking for user {entry.user_id}")
+
+                # Here you would send a notification to the user
+                # For now, we'll just log it
+                print(f"NOTIFICATION: User {entry.user_id} promoted from waitlist for slot {slot_id}")
+
+            except Exception as e:
+                print(f"Error promoting waitlist entry {entry.id}: {str(e)}")
+                db.session.rollback()
+                continue
+        else:
+            # Not enough machines, update positions for remaining entries
+            remaining_entries = Waitlist.query.filter_by(
                 slot_id=slot_id,
-                load_type=entry.load_type,
-                machines_used=machines_needed
-            )
-            slot.available_machines -= machines_needed
-            entry.status = WaitlistStatus.PROMOTED
+                status=WaitlistStatus.WAITING
+            ).order_by(Waitlist.position).all()
 
-            db.session.add(new_booking)
-            # Send notification to user here
+            for idx, remaining_entry in enumerate(remaining_entries, start=1):
+                remaining_entry.position = idx
 
-    db.session.commit()
+            break
+
+    try:
+        db.session.commit()
+        print(f"Waitlist promotion completed for slot {slot_id}")
+    except Exception as e:
+        print(f"Error committing waitlist promotions: {str(e)}")
+        db.session.rollback()
 
 
 # Initialize database
@@ -565,6 +829,7 @@ def init_db():
 
         # Generate initial slots for next 15 days
         auto_generate_slots()
+
 
 
 # if __name__ == '__main__':

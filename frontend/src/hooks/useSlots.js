@@ -1,78 +1,83 @@
-import { useState, useEffect, useCallback, useRef } from 'react';  // Add useRef
+import { useState, useEffect } from 'react';
 import apiClient from '../api/client';
 
-export const useSlots = (date) => {
+export const useSlots = (date, pairId = null) => {
     const [slots, setSlots] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const lastFetchedDate = useRef('');  // Now useRef is defined
 
-    const fetchSlots = useCallback(async () => {
-        if (!date) {
-            console.log('No date provided, skipping fetch');
-            return;
+    useEffect(() => {
+        if (date) {
+            fetchSlots();
         }
+    }, [date, pairId]);
 
-        console.log('Fetching slots for date:', date);
+    const fetchSlots = async () => {
         setLoading(true);
         setError(null);
-        try {
-            const response = await apiClient.getTimeSlots(date);
-            console.log('API response received:', response);
 
-            // Handle different possible response structures
-            if (Array.isArray(response)) {
-                // Response is directly an array
-                setSlots(response);
-            } else if (response && response.slots) {
-                // Response has { slots: [...] } structure
-                setSlots(response.slots);
-            } else if (response && response.data) {
-                // Response has { data: [...] } structure
-                setSlots(response.data);
-            } else {
-                console.warn('Unexpected response format:', response);
-                setSlots([]);
-            }
+        try {
+            const data = await apiClient.getTimeSlots(date, pairId);
+            console.log('Fetched slots:', data);
+            setSlots(data);
         } catch (err) {
-            console.error('Failed to fetch slots:', err);
-            setError(err.message || 'Failed to load slots');
+            console.error('Error fetching slots:', err);
+            setError(err.message || 'Failed to fetch time slots');
         } finally {
             setLoading(false);
         }
-    }, [date]);
+    };
 
-    useEffect(() => {
-        // Only fetch if date changed and we're not already loading
-        if (date && date !== lastFetchedDate.current && !loading) {
-            console.log('Date changed, fetching slots:', date);
-            lastFetchedDate.current = date;
-            fetchSlots();
-        }
-    }, [date, fetchSlots, loading]);
-
-    const createBooking = async (slotData) => {
+    const createBooking = async (bookingData) => {
         try {
-            console.log('Creating booking with data:', slotData);
-            const response = await apiClient.createBooking(slotData);
+            const response = await apiClient.createBooking(bookingData);
+
             console.log('Booking response:', response);
 
-            // Refresh slots after booking
+            // Refresh slots after booking attempt
             await fetchSlots();
+
+            // Check if response indicates waitlist (HTTP 202)
+            if (response.waitlist) {
+                return {
+                    success: true,
+                    message: response.message,
+                    data: {
+                        waitlist: true,
+                        position: response.position,
+                        waitlist_id: response.waitlist_id
+                    }
+                };
+            }
 
             return {
                 success: true,
-                data: response,
-                message: response.message || 'Booking created successfully'
+                message: response.message || 'Booking successful',
+                data: response
             };
         } catch (err) {
-            console.error('Booking failed:', err);
+            console.error('Error creating booking:', err);
+
+            // Check for waitlist full error
+            if (err.message?.includes('Waitlist is full')) {
+                return {
+                    success: false,
+                    error: err.message
+                };
+            }
+
             return {
                 success: false,
-                error: err.message || 'Booking failed'
+                error: err.message || 'Failed to create booking'
             };
         }
     };
 
-    return { slots, loading, error, fetchSlots, createBooking };
+    return {
+        slots,
+        loading,
+        error,
+        createBooking,
+        refreshSlots: fetchSlots
+    };
 };

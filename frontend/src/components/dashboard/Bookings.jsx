@@ -6,6 +6,7 @@ const Bookings = () => {
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [statusFilter, setStatusFilter] = useState('all');
 
     useEffect(() => {
         fetchBookings();
@@ -29,7 +30,6 @@ const Bookings = () => {
         if (window.confirm('Are you sure you want to cancel this booking?')) {
             try {
                 await apiClient.cancelBooking(bookingId);
-                // Refresh bookings list
                 fetchBookings();
                 alert('Booking cancelled successfully');
             } catch (err) {
@@ -42,9 +42,11 @@ const Bookings = () => {
         const statusConfig = {
             confirmed: { class: 'status-confirmed', label: 'Confirmed' },
             pending: { class: 'status-pending', label: 'Pending' },
+            received: { class: 'status-received', label: 'Received' },
+            washing: { class: 'status-washing', label: 'Washing' },
             completed: { class: 'status-completed', label: 'Completed' },
             cancelled: { class: 'status-cancelled', label: 'Cancelled' },
-            waiting: { class: 'status-waiting', label: 'Waiting' }
+            no_show: { class: 'status-no-show', label: 'No Show' }
         };
         const config = statusConfig[status] || { class: '', label: status };
         return (
@@ -58,14 +60,57 @@ const Bookings = () => {
         if (!timeString) return 'N/A';
         try {
             const date = new Date(timeString);
+            if (isNaN(date.getTime())) {
+                return 'Invalid Time';
+            }
             return date.toLocaleTimeString('en-US', {
                 hour: '2-digit',
                 minute: '2-digit',
                 hour12: true
             });
         } catch (e) {
-            return timeString;
+            console.error('Error formatting time:', e, timeString);
+            return 'N/A';
         }
+    };
+
+    const formatDate = (dateString) => {
+        if (!dateString) return 'N/A';
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) {
+                return 'Invalid Date';
+            }
+            return date.toLocaleDateString('en-US', {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        } catch (e) {
+            console.error('Error formatting date:', e, dateString);
+            return 'N/A';
+        }
+    };
+
+    const getMachineTypeLabel = (loadType) => {
+        const labels = {
+            combined: 'Washer & Dryer (Combined)',
+            separate_whites: 'Separate Loads - Whites',
+            separate_colors: 'Separate Loads - Colors'
+        };
+        return labels[loadType] || loadType;
+    };
+
+    // Filter bookings based on selected status
+    const filteredBookings = statusFilter === 'all'
+        ? bookings
+        : bookings.filter(booking => booking.status === statusFilter);
+
+    // Get count for each status
+    const getStatusCount = (status) => {
+        if (status === 'all') return bookings.length;
+        return bookings.filter(booking => booking.status === status).length;
     };
 
     if (loading) {
@@ -94,15 +139,143 @@ const Bookings = () => {
             <h2 className="dashboard-title">My Bookings</h2>
             <p className="dashboard-subtitle">Manage your laundry machine reservations</p>
 
+            {/* Filter Tabs */}
+            <div className="filter-tabs" style={{
+                display: 'flex',
+                gap: '8px',
+                marginBottom: '24px',
+                flexWrap: 'wrap',
+                borderBottom: '2px solid #e5e7eb',
+                paddingBottom: '8px'
+            }}>
+                <button
+                    onClick={() => setStatusFilter('all')}
+                    className={statusFilter === 'all' ? 'filter-tab active' : 'filter-tab'}
+                    style={{
+                        padding: '8px 16px',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        transition: 'all 0.2s',
+                        backgroundColor: statusFilter === 'all' ? '#3b82f6' : '#f3f4f6',
+                        color: statusFilter === 'all' ? 'white' : '#6b7280'
+                    }}
+                >
+                    All ({getStatusCount('all')})
+                </button>
+                <button
+                    onClick={() => setStatusFilter('confirmed')}
+                    className={statusFilter === 'confirmed' ? 'filter-tab active' : 'filter-tab'}
+                    style={{
+                        padding: '8px 16px',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        transition: 'all 0.2s',
+                        backgroundColor: statusFilter === 'confirmed' ? '#10b981' : '#f3f4f6',
+                        color: statusFilter === 'confirmed' ? 'white' : '#6b7280'
+                    }}
+                >
+                    Confirmed ({getStatusCount('confirmed')})
+                </button>
+                <button
+                    onClick={() => setStatusFilter('received')}
+                    className={statusFilter === 'received' ? 'filter-tab active' : 'filter-tab'}
+                    style={{
+                        padding: '8px 16px',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        transition: 'all 0.2s',
+                        backgroundColor: statusFilter === 'received' ? '#8b5cf6' : '#f3f4f6',
+                        color: statusFilter === 'received' ? 'white' : '#6b7280'
+                    }}
+                >
+                    Received ({getStatusCount('received')})
+                </button>
+                <button
+                    onClick={() => setStatusFilter('washing')}
+                    className={statusFilter === 'washing' ? 'filter-tab active' : 'filter-tab'}
+                    style={{
+                        padding: '8px 16px',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        transition: 'all 0.2s',
+                        backgroundColor: statusFilter === 'washing' ? '#06b6d4' : '#f3f4f6',
+                        color: statusFilter === 'washing' ? 'white' : '#6b7280'
+                    }}
+                >
+                    Washing ({getStatusCount('washing')})
+                </button>
+                <button
+                    onClick={() => setStatusFilter('completed')}
+                    className={statusFilter === 'completed' ? 'filter-tab active' : 'filter-tab'}
+                    style={{
+                        padding: '8px 16px',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        transition: 'all 0.2s',
+                        backgroundColor: statusFilter === 'completed' ? '#22c55e' : '#f3f4f6',
+                        color: statusFilter === 'completed' ? 'white' : '#6b7280'
+                    }}
+                >
+                    Completed ({getStatusCount('completed')})
+                </button>
+                <button
+                    onClick={() => setStatusFilter('cancelled')}
+                    className={statusFilter === 'cancelled' ? 'filter-tab active' : 'filter-tab'}
+                    style={{
+                        padding: '8px 16px',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        transition: 'all 0.2s',
+                        backgroundColor: statusFilter === 'cancelled' ? '#ef4444' : '#f3f4f6',
+                        color: statusFilter === 'cancelled' ? 'white' : '#6b7280'
+                    }}
+                >
+                    Cancelled ({getStatusCount('cancelled')})
+                </button>
+                <button
+                    onClick={() => setStatusFilter('no_show')}
+                    className={statusFilter === 'no_show' ? 'filter-tab active' : 'filter-tab'}
+                    style={{
+                        padding: '8px 16px',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        transition: 'all 0.2s',
+                        backgroundColor: statusFilter === 'no_show' ? '#f97316' : '#f3f4f6',
+                        color: statusFilter === 'no_show' ? 'white' : '#6b7280'
+                    }}
+                >
+                    No Show ({getStatusCount('no_show')})
+                </button>
+            </div>
+
             <div className="bookings-list">
-                {bookings.length > 0 ? (
-                    bookings.map((booking) => (
+                {filteredBookings.length > 0 ? (
+                    filteredBookings.map((booking) => (
                         <div key={booking.id} className="booking-card">
                             <div className="booking-header">
                                 <h3>
-                                    {booking.machine_type === 'both'
-                                        ? 'Washer & Dryer'
-                                        : `${booking.machine_type?.charAt(0).toUpperCase() + booking.machine_type?.slice(1)}`}
+                                    {getMachineTypeLabel(booking.load_type)}
                                     {booking.pair_id && (
                                         <span style={{ fontSize: '14px', color: '#6b7280', marginLeft: '8px' }}>
                                             (Pair {booking.pair_id})
@@ -112,12 +285,17 @@ const Bookings = () => {
                                 {getStatusBadge(booking.status)}
                             </div>
                             <div className="booking-details">
-                                <p><strong>Date:</strong> {new Date(booking.date).toLocaleDateString()}</p>
+                                <p><strong>Date:</strong> {formatDate(booking.date)}</p>
                                 <p><strong>Time:</strong> {formatTime(booking.start_time)} - {formatTime(booking.end_time)}</p>
-                                <p><strong>Booking ID:</strong> {booking.booking_id || booking.id}</p>
-                                {booking.notes && <p><strong>Notes:</strong> {booking.notes}</p>}
+                                <p><strong>Booking ID:</strong> {booking.ticket_id}</p>
+                                <p><strong>Machines Used:</strong> {booking.machines_used}</p>
+                                {booking.created_at && (
+                                    <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
+                                        Booked on: {formatDate(booking.created_at)}
+                                    </p>
+                                )}
                             </div>
-                            {(booking.status === 'confirmed' || booking.status === 'pending') && (
+                            {(booking.status === 'confirmed' || booking.status === 'received') && (
                                 <button
                                     onClick={() => handleCancelBooking(booking.id)}
                                     className="btn-cancel"
@@ -130,7 +308,20 @@ const Bookings = () => {
                 ) : (
                     <div className="empty-state">
                         <span className="empty-icon">📋</span>
-                        <p>No bookings found</p>
+                        <p>
+                            {statusFilter === 'all'
+                                ? 'No bookings found'
+                                : `No ${statusFilter} bookings`}
+                        </p>
+                        {statusFilter !== 'all' && (
+                            <button
+                                className="btn-primary"
+                                onClick={() => setStatusFilter('all')}
+                                style={{ marginBottom: '10px' }}
+                            >
+                                View All Bookings
+                            </button>
+                        )}
                         <button
                             className="btn-primary"
                             onClick={() => window.location.hash = '#book'}
@@ -144,4 +335,4 @@ const Bookings = () => {
     );
 };
 
-export default Bookings;  // Make sure this line exists!
+export default Bookings;
