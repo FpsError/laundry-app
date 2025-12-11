@@ -17,7 +17,6 @@ const Sidebar = ({ activeSection, onSectionChange, user }) => {
         { id: 'admin-bookings', label: 'All Bookings', icon: '📋' },
         { id: 'admin-slots', label: 'Manage Slots', icon: '🕐' },
         { id: 'admin-machines', label: 'Machines', icon: '🔧' },
-        { id: 'admin-users', label: 'Users', icon: '👥' },
         { id: 'profile', label: 'Profile', icon: '👤' },
     ];
 

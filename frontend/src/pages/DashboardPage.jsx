@@ -8,6 +8,7 @@ import Waitlist from '../components/dashboard/Waitlist';
 import Profile from '../components/dashboard/Profile';
 import AdminTimeSlots from '../components/dashboard/AdminTimeSlots';
 import AdminBookings from '../components/dashboard/AdminBookings';
+import AdminMachines from '../components/dashboard/AdminMachines';
 
 const DashboardPage = ({ user, onLogout }) => {
     const [activeSection, setActiveSection] = useState('dashboard');
@@ -50,10 +51,10 @@ const DashboardPage = ({ user, onLogout }) => {
                 return <AdminTimeSlots />;
             case 'admin-bookings':
                 return <AdminBookings />;
-            case 'admin-machines':
-                return <div style={{ padding: '20px' }}><h1>Machines Management (Coming Soon)</h1></div>;
             case 'admin-users':
                 return <div style={{ padding: '20px' }}><h1>Users Management (Coming Soon)</h1></div>;
+            case 'admin-machines':
+                return <AdminMachines />;
             default:
                 return isAdmin ? <AdminDashboardHome /> : <DashboardHome />;
         }

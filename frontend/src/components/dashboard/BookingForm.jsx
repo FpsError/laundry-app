@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { useSlots } from '../../hooks/useSlots';
+import BookingTicket from './BookingTicket';
 import '../../styles/Dashboard.css';
 
 const BookingForm = ({ onBookingComplete }) => {
@@ -8,6 +9,8 @@ const BookingForm = ({ onBookingComplete }) => {
     const [selectedSlotId, setSelectedSlotId] = useState(null);
     const [loadType, setLoadType] = useState('combined');
     const [bookingMessage, setBookingMessage] = useState('');
+    const [showTicket, setShowTicket] = useState(false);
+    const [ticketData, setTicketData] = useState(null);
 
     const { slots, loading, error, createBooking } = useSlots(date);
 
@@ -75,12 +78,28 @@ const BookingForm = ({ onBookingComplete }) => {
                     console.log('SHOULD REDIRECT NOW');
                     window.location.hash = '#waitlist';
                 } else {
+                    // Show success message
                     setBookingMessage('✅ ' + (result.message || 'Booking successful!'));
+
+                    // Prepare ticket data
+                    const user = JSON.parse(localStorage.getItem('user'));
+                    const ticket = {
+                        ticket_id: result.data.booking.ticket_id,
+                        date: slot.date,
+                        start_time: slot.start_time,
+                        end_time: slot.end_time,
+                        pair_id: slot.pair_id,
+                        load_type: loadType,
+                        machines_used: loadType === 'combined' ? 1 : 2,
+                        created_at: new Date().toISOString()
+                    };
+
+                    setTicketData({ booking: ticket, user });
+
+                    // Show ticket after a brief delay
                     setTimeout(() => {
-                        if (onBookingComplete) {
-                            onBookingComplete();
-                        }
-                    }, 2000);
+                        setShowTicket(true);
+                    }, 1000);
                 }
                 setSelectedSlotId(null);
             } else {
@@ -103,18 +122,20 @@ const BookingForm = ({ onBookingComplete }) => {
         }
     };
 
+    const handleCloseTicket = () => {
+        setShowTicket(false);
+        setTicketData(null);
+        if (onBookingComplete) {
+            onBookingComplete();
+        }
+    };
+
     const getMachinesNeeded = (type) => {
         return type === 'combined' ? 1 : 2;
     };
 
     // DON'T filter out full slots - show them all
     const displaySlots = slots;
-
-    console.log('=== SLOT DEBUG ===');
-    console.log('Total slots received:', slots.length);
-    console.log('Slots to display:', displaySlots.length);
-    console.log('All slots:', slots);
-    console.log('================');
 
     return (
         <div>
@@ -287,28 +308,27 @@ const BookingForm = ({ onBookingComplete }) => {
 
                 {bookingMessage && (
                     <div className={`info-message ${
-                        bookingMessage.includes('successful') || bookingMessage.includes('waitlist')
+                        bookingMessage.includes('successful') || bookingMessage.includes('✅')
                             ? 'success'
                             : 'error'
                     }`}>
                         <span className="info-icon">
-                            {bookingMessage.includes('successful') ? '✅' :
+                            {bookingMessage.includes('successful') || bookingMessage.includes('✅') ? '✅' :
                                 bookingMessage.includes('waitlist') ? '⏱️' : '❌'}
                         </span>
                         <p>{bookingMessage}</p>
-                        {bookingMessage.includes('successful') && (
-                            <small style={{ display: 'block', marginTop: '8px' }}>
-                                Redirecting to My Bookings...
-                            </small>
-                        )}
-                        {bookingMessage.includes('waitlist') && (
-                            <small style={{ display: 'block', marginTop: '8px' }}>
-                                Redirecting to Waitlist page...
-                            </small>
-                        )}
                     </div>
                 )}
             </div>
+
+            {/* Ticket Modal */}
+            {showTicket && ticketData && (
+                <BookingTicket
+                    booking={ticketData.booking}
+                    user={ticketData.user}
+                    onClose={handleCloseTicket}
+                />
+            )}
         </div>
     );
 };
@@ -316,7 +336,9 @@ const BookingForm = ({ onBookingComplete }) => {
 const SlotCard = ({ slot, loadType, getMachinesNeeded, onBook, formatTime }) => {
     const machinesNeeded = getMachinesNeeded(loadType);
     const isBookable = slot.available_machines >= machinesNeeded;
-    const isFull = slot.available_machines === 0;
+
+    // Use total_machines from backend if available, otherwise default to 2
+    const totalMachines = slot.total_machines || 2;
 
     return (
         <div className={`slot-card ${!isBookable ? 'slot-full' : ''}`}>
@@ -330,17 +352,27 @@ const SlotCard = ({ slot, loadType, getMachinesNeeded, onBook, formatTime }) => 
                     </div>
                 </div>
                 <span className={`availability-badge ${isBookable ? 'available' : 'full'}`}>
-                    {isBookable ? '✅ Available' : (isFull ? '❌ Full' : '⚠️ Limited')}
+                    {isBookable ? '✅ Available' : '❌ Full'}
                 </span>
             </div>
             <div className="slot-info">
                 <div>
                     <span style={{ fontWeight: '500' }}>
-                        {slot.available_machines} / 2 machines available
+                        {slot.available_machines} / {totalMachines} machines available
                     </span>
                     {slot.pair_id && (
                         <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
                             Machine Pair: {slot.pair_id}
+                        </div>
+                    )}
+                    {totalMachines < 2 && (
+                        <div style={{
+                            fontSize: '12px',
+                            color: '#f59e0b',
+                            marginTop: '4px',
+                            fontWeight: '500'
+                        }}>
+                            ⚠️ Some machines in maintenance
                         </div>
                     )}
                 </div>
@@ -348,28 +380,15 @@ const SlotCard = ({ slot, loadType, getMachinesNeeded, onBook, formatTime }) => 
                     {machinesNeeded === 1 ? 'Needs 1 machine' : 'Needs 2 machines'}
                 </div>
             </div>
-
-            {/* Remove disabled attribute - let all buttons be clickable */}
-            {isBookable ? (
-                <button
-                    onClick={() => onBook(slot)}
-                    className="btn-book"
-                >
-                    Book {machinesNeeded} Machine{machinesNeeded > 1 ? 's' : ''}
-                </button>
-            ) : (
-                <button
-                    onClick={() => onBook(slot)}
-                    className="btn-book"
-                    style={{
-                        backgroundColor: '#f59e0b',
-                        borderColor: '#f59e0b',
-                        opacity: 1  // Force full opacity
-                    }}
-                >
-                    {isFull ? '⏱️ Join Waitlist' : `Need ${machinesNeeded} - Join Waitlist`}
-                </button>
-            )}
+            <button
+                onClick={() => onBook(slot)}
+                className="btn-book"
+                disabled={!isBookable}
+            >
+                {isBookable
+                    ? `Book ${machinesNeeded} Machine${machinesNeeded > 1 ? 's' : ''}`
+                    : 'Not Enough Machines'}
+            </button>
         </div>
     );
 };

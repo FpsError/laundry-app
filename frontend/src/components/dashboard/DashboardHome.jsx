@@ -39,7 +39,6 @@ const DashboardHome = () => {
                 upcomingBookings: upcoming,
                 completedWashes: completed,
                 waitlistPosition: waitlistPos,
-                favoriteMachine: 'Washer #3' // You can calculate this from booking history
             });
         } catch (error) {
             console.error('Failed to fetch dashboard stats:', error);
@@ -82,13 +81,6 @@ const DashboardHome = () => {
                     <div className="stat-info">
                         <h3>{stats.waitlistPosition}</h3>
                         <p>Waitlist Position</p>
-                    </div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-icon">⭐</div>
-                    <div className="stat-info">
-                        <h3>{stats.favoriteMachine || 'N/A'}</h3>
-                        <p>Favorite Machine</p>
                     </div>
                 </div>
             </div>

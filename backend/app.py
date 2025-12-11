@@ -228,6 +228,43 @@ def get_timeslots(current_user):
             elif slot.date < now.date():
                 continue
 
+        # ====== FIX: Check machine availability status ======
+        # Get machines for this slot's pair
+        available_machines_in_pair = Machine.query.filter_by(
+            pair_id=slot.pair_id,
+            status='available'  # Only count machines that are available (not in maintenance)
+        ).count()
+
+        # Get total machines in pair (for display purposes)
+        total_machines_in_pair = Machine.query.filter_by(
+            pair_id=slot.pair_id
+        ).count()
+
+        print(
+            f"Slot {slot.id} - Pair {slot.pair_id}: {available_machines_in_pair}/{total_machines_in_pair} machines available (not in maintenance)")
+
+        # If no machines are available in this pair (all in maintenance), treat as disabled
+        if available_machines_in_pair == 0:
+            print(f"All machines in pair {slot.pair_id} are in maintenance, skipping slot {slot.id}")
+            if current_user.role == UserRole.STUDENT:
+                continue  # Don't show to students
+            else:
+                # For admins, show but mark as disabled
+                available_slots.append({
+                    'id': slot.id,
+                    'pair_id': slot.pair_id,
+                    'date': slot.date.isoformat(),
+                    'start_time': slot.start_time.isoformat(),
+                    'end_time': slot.end_time.isoformat(),
+                    'available_machines': 0,
+                    'total_machines': total_machines_in_pair,
+                    'is_disabled': True,
+                    'is_full': False,
+                    'reason': 'All machines in maintenance'
+                })
+                continue
+        # ====== END FIX ======
+
         # Calculate actual available machines based on confirmed bookings
         confirmed_bookings = Booking.query.filter_by(
             slot_id=slot.id
@@ -238,24 +275,29 @@ def get_timeslots(current_user):
         total_machines_used = sum(booking.machines_used for booking in confirmed_bookings)
 
         # IMPORTANT: If slot is disabled (available_machines = 0), keep it as 0
-        # Otherwise, calculate based on bookings
+        # Otherwise, calculate based on AVAILABLE machines in pair minus bookings
         if is_disabled:
             actual_available = 0
         else:
-            actual_available = max(0, 2 - total_machines_used)
+            # Use the number of available machines (not in maintenance) minus used machines
+            actual_available = max(0, available_machines_in_pair - total_machines_used)
 
         # CRITICAL: Include the slot even if actual_available is 0 (full)
         # This allows students to see full slots and join waitlist
-        available_slots.append({
+        slot_data = {
             'id': slot.id,
             'pair_id': slot.pair_id,
             'date': slot.date.isoformat(),
             'start_time': slot.start_time.isoformat(),
             'end_time': slot.end_time.isoformat(),
             'available_machines': actual_available,
+            'total_machines': available_machines_in_pair,  # Show working machines only
             'is_disabled': is_disabled,
-            'is_full': actual_available == 0 and not is_disabled  # New field to distinguish full vs disabled
-        })
+            'is_full': actual_available == 0 and not is_disabled
+        }
+
+        print(f"Slot {slot.id}: available={actual_available}, total={available_machines_in_pair}")
+        available_slots.append(slot_data)
 
     print(f"Returning {len(available_slots)} slots for {current_user.role.value}")
     return jsonify(available_slots)

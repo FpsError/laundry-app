@@ -10,6 +10,7 @@ const AdminBookings = () => {
         const today = new Date();
         return today.toISOString().split('T')[0];
     });
+    const [searchQuery, setSearchQuery] = useState('');
     const [message, setMessage] = useState(null);
 
     useEffect(() => {
@@ -86,8 +87,23 @@ const AdminBookings = () => {
     };
 
     const filteredBookings = bookings.filter(booking => {
+        // Status filter
         if (filterStatus !== 'all' && booking.status !== filterStatus) return false;
+
+        // Date filter
         if (filterDate && booking.date !== filterDate) return false;
+
+        // Search filter (user ID or ticket ID)
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            const userId = String(booking.user_id || '').toLowerCase();
+            const ticketId = String(booking.ticket_id || '').toLowerCase();
+
+            if (!userId.includes(query) && !ticketId.includes(query)) {
+                return false;
+            }
+        }
+
         return true;
     });
 
@@ -128,6 +144,25 @@ const AdminBookings = () => {
                 marginBottom: '24px',
                 flexWrap: 'wrap'
             }}>
+                <div style={{ flex: '1', minWidth: '200px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
+                        🔍 Search User ID or Ticket ID
+                    </label>
+                    <input
+                        type="text"
+                        placeholder="Search by User ID or Ticket ID..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        style={{
+                            width: '100%',
+                            padding: '10px',
+                            border: '1px solid #ddd',
+                            borderRadius: '6px',
+                            fontSize: '14px'
+                        }}
+                    />
+                </div>
+
                 <div style={{ flex: '1', minWidth: '200px' }}>
                     <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
                         Filter by Status
@@ -175,6 +210,7 @@ const AdminBookings = () => {
                     onClick={() => {
                         setFilterStatus('all');
                         setFilterDate('');
+                        setSearchQuery('');
                     }}
                     style={{
                         padding: '10px 20px',
@@ -189,6 +225,23 @@ const AdminBookings = () => {
                 >
                     Clear Filters
                 </button>
+            </div>
+
+            {/* Results count */}
+            <div style={{
+                padding: '12px 16px',
+                marginBottom: '20px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '6px',
+                fontSize: '14px',
+                color: '#666'
+            }}>
+                Showing <strong>{filteredBookings.length}</strong> of <strong>{bookings.length}</strong> bookings
+                {searchQuery && (
+                    <span style={{ marginLeft: '8px' }}>
+                        (search: "{searchQuery}")
+                    </span>
+                )}
             </div>
 
             {loading ? (
@@ -211,9 +264,14 @@ const AdminBookings = () => {
                     backgroundColor: '#f8f9fa',
                     borderRadius: '8px'
                 }}>
-                    <p style={{ fontSize: '18px', color: '#666' }}>
+                    <p style={{ fontSize: '18px', color: '#666', marginBottom: '8px' }}>
                         No bookings found
                     </p>
+                    {(searchQuery || filterStatus !== 'all' || filterDate) && (
+                        <p style={{ fontSize: '14px', color: '#999' }}>
+                            Try adjusting your filters or search query
+                        </p>
+                    )}
                 </div>
             ) : (
                 Object.keys(groupedBookings).sort().reverse().map(date => (

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import apiClient from '../../api/client';
+import BookingTicket from './BookingTicket';
 import '../../styles/Dashboard.css';
 
 const Bookings = () => {
@@ -7,6 +8,8 @@ const Bookings = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [statusFilter, setStatusFilter] = useState('all');
+    const [showTicket, setShowTicket] = useState(false);
+    const [selectedBooking, setSelectedBooking] = useState(null);
 
     useEffect(() => {
         fetchBookings();
@@ -36,6 +39,17 @@ const Bookings = () => {
                 alert(`Failed to cancel booking: ${err.message}`);
             }
         }
+    };
+
+    const handlePrintTicket = (booking) => {
+        const user = JSON.parse(localStorage.getItem('user'));
+        setSelectedBooking({ booking, user });
+        setShowTicket(true);
+    };
+
+    const handleCloseTicket = () => {
+        setShowTicket(false);
+        setSelectedBooking(null);
     };
 
     const getStatusBadge = (status) => {
@@ -295,14 +309,35 @@ const Bookings = () => {
                                     </p>
                                 )}
                             </div>
-                            {(booking.status === 'confirmed' || booking.status === 'received') && (
-                                <button
-                                    onClick={() => handleCancelBooking(booking.id)}
-                                    className="btn-cancel"
-                                >
-                                    Cancel Booking
-                                </button>
-                            )}
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                {/* Print Ticket Button - show for confirmed, received, washing */}
+                                {(booking.status === 'confirmed' || booking.status === 'received' || booking.status === 'washing') && (
+                                    <button
+                                        onClick={() => handlePrintTicket(booking)}
+                                        className="btn-primary"
+                                        style={{
+                                            backgroundColor: '#3b82f6',
+                                            flex: '1',
+                                            minWidth: '120px'
+                                        }}
+                                    >
+                                        🖨️ Print Ticket
+                                    </button>
+                                )}
+                                {/* Cancel Button */}
+                                {(booking.status === 'confirmed' || booking.status === 'received') && (
+                                    <button
+                                        onClick={() => handleCancelBooking(booking.id)}
+                                        className="btn-cancel"
+                                        style={{
+                                            flex: '1',
+                                            minWidth: '120px'
+                                        }}
+                                    >
+                                        Cancel Booking
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     ))
                 ) : (
@@ -331,6 +366,15 @@ const Bookings = () => {
                     </div>
                 )}
             </div>
+
+            {/* Ticket Modal */}
+            {showTicket && selectedBooking && (
+                <BookingTicket
+                    booking={selectedBooking.booking}
+                    user={selectedBooking.user}
+                    onClose={handleCloseTicket}
+                />
+            )}
         </div>
     );
 };

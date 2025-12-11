@@ -12,8 +12,10 @@ const Navbar = ({ user, onLogout }) => {
                     />
                     <h2>Laundry Portal</h2>
                 </div>
-                <div>
-                    <span>Welcome, {user?.full_name || user?.email}</span>
+                <div className="user-section">
+                    <div className="welcome-text">
+                        Welcome back, <span className="user-name">{user?.full_name || user?.email}</span>
+                    </div>
                     <button onClick={onLogout} className="logout-btn">
                         Logout
                     </button>

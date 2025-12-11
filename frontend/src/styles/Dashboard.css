@@ -944,3 +944,57 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* User section styling */
+.user-section {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.welcome-text {
+    font-size: 14px;
+    color: #666;
+    font-weight: 500;
+}
+
+.user-name {
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 15px;
+}
+
+.logout-btn {
+    padding: 8px 16px;
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.logout-btn:hover {
+    background-color: #c0392b;
+    transform: translateY(-1px);
+}
+
+/* If you want an icon with the welcome message */
+.user-section.with-icon {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: #3498db;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
