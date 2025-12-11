@@ -123,20 +123,6 @@ const LoginForm = ({ onLogin, switchToRegister }) => {
                     />
                     Remember me
                 </label>
-                <button
-                    type="button"
-                    disabled={loading}
-                    style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#10b981',
-                        fontSize: '14px',
-                        fontWeight: '600',
-                        cursor: loading ? 'not-allowed' : 'pointer'
-                    }}
-                >
-                    Forgot password?
-                </button>
             </div>
 
             <button

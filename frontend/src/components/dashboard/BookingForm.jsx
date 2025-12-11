@@ -335,9 +335,21 @@ const BookingForm = ({ onBookingComplete }) => {
 
 const SlotCard = ({ slot, loadType, getMachinesNeeded, onBook, formatTime }) => {
     const machinesNeeded = getMachinesNeeded(loadType);
-    const isBookable = slot.available_machines >= machinesNeeded;
 
-    // Use total_machines from backend if available, otherwise default to 2
+    // Check if machines are unavailable due to maintenance
+    const machinesInMaintenance = slot.machines_in_maintenance || false;
+
+    // A slot is bookable if:
+    // 1. It has enough available machines for the load type
+    // 2. AND machines are not all in maintenance
+    const isBookable = slot.available_machines >= machinesNeeded && !machinesInMaintenance;
+
+    // A slot is full (and can join waitlist) if:
+    // 1. Not enough machines available
+    // 2. BUT machines are working (not in maintenance)
+    // 3. AND slot is not disabled
+    const canJoinWaitlist = !isBookable && !machinesInMaintenance && !slot.is_disabled;
+
     const totalMachines = slot.total_machines || 2;
 
     return (
@@ -352,7 +364,7 @@ const SlotCard = ({ slot, loadType, getMachinesNeeded, onBook, formatTime }) => 
                     </div>
                 </div>
                 <span className={`availability-badge ${isBookable ? 'available' : 'full'}`}>
-                    {isBookable ? '✅ Available' : '❌ Full'}
+                    {isBookable ? '✅ Available' : machinesInMaintenance ? '🔧 Maintenance' : '❌ Full'}
                 </span>
             </div>
             <div className="slot-info">
@@ -365,7 +377,17 @@ const SlotCard = ({ slot, loadType, getMachinesNeeded, onBook, formatTime }) => 
                             Machine Pair: {slot.pair_id}
                         </div>
                     )}
-                    {totalMachines < 2 && (
+                    {machinesInMaintenance && (
+                        <div style={{
+                            fontSize: '12px',
+                            color: '#f59e0b',
+                            marginTop: '4px',
+                            fontWeight: '500'
+                        }}>
+                            ⚠️ All machines in maintenance
+                        </div>
+                    )}
+                    {totalMachines < 2 && !machinesInMaintenance && (
                         <div style={{
                             fontSize: '12px',
                             color: '#f59e0b',
@@ -383,11 +405,15 @@ const SlotCard = ({ slot, loadType, getMachinesNeeded, onBook, formatTime }) => 
             <button
                 onClick={() => onBook(slot)}
                 className="btn-book"
-                disabled={!isBookable}
+                disabled={machinesInMaintenance}
             >
-                {isBookable
-                    ? `Book ${machinesNeeded} Machine${machinesNeeded > 1 ? 's' : ''}`
-                    : 'Not Enough Machines'}
+                {machinesInMaintenance
+                    ? '🔧 Machines Unavailable'
+                    : isBookable
+                        ? `Book ${machinesNeeded} Machine${machinesNeeded > 1 ? 's' : ''}`
+                        : canJoinWaitlist
+                            ? '⏱️ Join Waitlist'
+                            : 'Not Available'}
             </button>
         </div>
     );

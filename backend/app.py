@@ -228,14 +228,12 @@ def get_timeslots(current_user):
             elif slot.date < now.date():
                 continue
 
-        # ====== FIX: Check machine availability status ======
         # Get machines for this slot's pair
         available_machines_in_pair = Machine.query.filter_by(
             pair_id=slot.pair_id,
-            status='available'  # Only count machines that are available (not in maintenance)
+            status='available'
         ).count()
 
-        # Get total machines in pair (for display purposes)
         total_machines_in_pair = Machine.query.filter_by(
             pair_id=slot.pair_id
         ).count()
@@ -243,11 +241,15 @@ def get_timeslots(current_user):
         print(
             f"Slot {slot.id} - Pair {slot.pair_id}: {available_machines_in_pair}/{total_machines_in_pair} machines available (not in maintenance)")
 
-        # If no machines are available in this pair (all in maintenance), treat as disabled
-        if available_machines_in_pair == 0:
-            print(f"All machines in pair {slot.pair_id} are in maintenance, skipping slot {slot.id}")
+        # CRITICAL FIX: Separate "machines in maintenance" from "slot full"
+        # If ALL machines are in maintenance, this is different from "slot is full"
+        all_machines_in_maintenance = (available_machines_in_pair == 0)
+
+        if all_machines_in_maintenance:
+            print(f"All machines in pair {slot.pair_id} are in maintenance")
             if current_user.role == UserRole.STUDENT:
-                continue  # Don't show to students
+                # Don't show to students - they can't book OR join waitlist
+                continue
             else:
                 # For admins, show but mark as disabled
                 available_slots.append({
@@ -260,10 +262,10 @@ def get_timeslots(current_user):
                     'total_machines': total_machines_in_pair,
                     'is_disabled': True,
                     'is_full': False,
+                    'machines_in_maintenance': True,  # New flag
                     'reason': 'All machines in maintenance'
                 })
                 continue
-        # ====== END FIX ======
 
         # Calculate actual available machines based on confirmed bookings
         confirmed_bookings = Booking.query.filter_by(
@@ -274,16 +276,15 @@ def get_timeslots(current_user):
 
         total_machines_used = sum(booking.machines_used for booking in confirmed_bookings)
 
-        # IMPORTANT: If slot is disabled (available_machines = 0), keep it as 0
-        # Otherwise, calculate based on AVAILABLE machines in pair minus bookings
+        # Calculate available based on working machines minus bookings
         if is_disabled:
             actual_available = 0
         else:
-            # Use the number of available machines (not in maintenance) minus used machines
             actual_available = max(0, available_machines_in_pair - total_machines_used)
 
-        # CRITICAL: Include the slot even if actual_available is 0 (full)
-        # This allows students to see full slots and join waitlist
+        # CRITICAL: Determine if slot is "full due to bookings" vs "unavailable due to maintenance"
+        slot_full_due_to_bookings = (actual_available == 0 and not is_disabled and not all_machines_in_maintenance)
+
         slot_data = {
             'id': slot.id,
             'pair_id': slot.pair_id,
@@ -291,12 +292,14 @@ def get_timeslots(current_user):
             'start_time': slot.start_time.isoformat(),
             'end_time': slot.end_time.isoformat(),
             'available_machines': actual_available,
-            'total_machines': available_machines_in_pair,  # Show working machines only
+            'total_machines': available_machines_in_pair,
             'is_disabled': is_disabled,
-            'is_full': actual_available == 0 and not is_disabled
+            'is_full': slot_full_due_to_bookings,  # Only true if full due to bookings, not maintenance
+            'machines_in_maintenance': all_machines_in_maintenance
         }
 
-        print(f"Slot {slot.id}: available={actual_available}, total={available_machines_in_pair}")
+        print(
+            f"Slot {slot.id}: available={actual_available}, total={available_machines_in_pair}, is_full={slot_full_due_to_bookings}, maintenance={all_machines_in_maintenance}")
         available_slots.append(slot_data)
 
     print(f"Returning {len(available_slots)} slots for {current_user.role.value}")

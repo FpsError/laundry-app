@@ -998,3 +998,85 @@
     justify-content: center;
     font-weight: bold;
 }
+
+/* Dashboard Layout */
+.dashboard-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.dashboard-nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background-color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    /* Add your existing nav styles here */
+}
+
+.dashboard-layout {
+    display: flex;
+    flex: 1;
+    position: relative;
+}
+
+/* Sidebar - Make it fixed */
+.sidebar {
+    position: fixed;
+    top: 60px; /* Adjust based on your navbar height */
+    left: 0;
+    height: calc(100vh - 60px); /* Full height minus navbar */
+    width: 250px; /* Adjust width as needed */
+    background-color: #f8f9fa;
+    border-right: 1px solid #e9ecef;
+    overflow-y: auto; /* Allows scrolling within sidebar if content overflows */
+    z-index: 90;
+    padding: 20px 0;
+}
+
+/* Main content - Add margin-left to account for sidebar */
+.dashboard-main {
+    flex: 1;
+    margin-left: 250px; /* Same as sidebar width */
+    width: calc(100% - 250px);
+    min-height: calc(100vh - 60px); /* Full height minus navbar */
+}
+
+.dashboard-content {
+    padding: 30px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Alternative: If you want a collapsible sidebar */
+@media (max-width: 768px) {
+    .sidebar {
+        position: fixed;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        width: 280px;
+    }
+
+    .sidebar.open {
+        transform: translateX(0);
+    }
+
+    .dashboard-main {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .sidebar-toggle {
+        display: block;
+        position: fixed;
+        top: 70px;
+        left: 10px;
+        z-index: 95;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 8px 12px;
+        cursor: pointer;
+    }
+}

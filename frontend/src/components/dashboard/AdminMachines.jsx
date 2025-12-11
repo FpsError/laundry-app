@@ -129,27 +129,6 @@ const AdminMachines = () => {
                 </div>
             )}
 
-            {/* Info Banner */}
-            <div style={{
-                backgroundColor: '#e3f2fd',
-                padding: '16px',
-                borderRadius: '8px',
-                marginBottom: '24px',
-                border: '1px solid #90caf9'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'start', gap: '12px' }}>
-                    <span style={{ fontSize: '24px' }}>ℹ️</span>
-                    <div style={{ fontSize: '14px', lineHeight: '1.6' }}>
-                        <strong>Machine Status Guide:</strong>
-                        <ul style={{ marginTop: '8px', marginLeft: '20px' }}>
-                            <li><strong>Available:</strong> Machine is working and can be booked</li>
-                            <li><strong>Maintenance:</strong> Temporarily out of service for repairs</li>
-                            <li><strong>Out of Service:</strong> Permanently disabled or removed</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
             {loading ? (
                 <div style={{ textAlign: 'center', padding: '60px' }}>
                     <div style={{
