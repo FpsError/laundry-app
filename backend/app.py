@@ -1,22 +1,18 @@
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from database import db
-from models import User, Booking, TimeSlot, Machine, Waitlist, UserRole, BookingStatus, LoadType, WaitlistStatus
-from datetime import datetime, timedelta
 import jwt
 from functools import wraps
-import os
+from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from flask_mail import Mail, Message
 from threading import Thread
 
-# Import slot generator functions
-from services.slot_generator import generate_daily_slots, initialize_machines
-
+# Create Flask app FIRST
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///masbana.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Set secret key and other configs
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production')
 
 # Email Configuration
@@ -29,8 +25,20 @@ app.config['MAIL_DEFAULT_SENDER'] = 'noreply@fpserror.casa'
 
 mail = Mail(app)
 
-db.init_app(app)
+# NOW import database and initialize it
+from database import db, init_db
+
+# Initialize database - this sets SQLALCHEMY_DATABASE_URI and calls db.init_app(app)
+db_path = init_db(app)
+
+# Initialize CORS AFTER database is set up
 CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+# NOW import models AFTER db is initialized
+from models import User, Booking, TimeSlot, Machine, Waitlist, UserRole, BookingStatus, LoadType, WaitlistStatus
+
+# Import slot generator functions
+from services.slot_generator import generate_daily_slots, initialize_machines
 
 # Operational hours configuration
 OPERATIONAL_HOURS = {
@@ -1250,10 +1258,9 @@ def promote_from_waitlist(slot_id):
         db.session.rollback()
 
 
-# Initialize database
-def init_db():
+# Initialize application data (machines and slots)
+def initialize_app_data():
     with app.app_context():
-        db.create_all()
         # Initialize machines if not exist
         if Machine.query.count() == 0:
             initialize_machines()
@@ -1261,17 +1268,7 @@ def init_db():
         # Generate initial slots for next 15 days
         auto_generate_slots()
 
-
-
-# if __name__ == '__main__':
-#     init_db()
-#     scheduler.start()
-#     try:
-#         app.run(debug=True, port=5000)
-#     except (KeyboardInterrupt, SystemExit):
-#         scheduler.shutdown()
-
-init_db()
+initialize_app_data()
 scheduler.start()
 
 if __name__ == '__main__':
