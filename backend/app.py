@@ -19,9 +19,9 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-change-
 app.config['MAIL_SERVER'] = 'smtp.mailersend.net'
 app.config['MAIL_PORT'] = 2525
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'MS_IP6K3T@fpserror.casa'
-app.config['MAIL_PASSWORD'] = 'mssp.jp0mMcL.vywj2lp3r6m47oqz.kM1DegQ'
-app.config['MAIL_DEFAULT_SENDER'] = 'noreply@fpserror.casa'
+app.config['MAIL_USERNAME'] = 'username'
+app.config['MAIL_PASSWORD'] = 'password'
+app.config['MAIL_DEFAULT_SENDER'] = 'noreply@domainname.com'
 
 mail = Mail(app)
 
