@@ -8,6 +8,8 @@ from functools import wraps
 import os
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from flask_mail import Mail, Message
+from threading import Thread
 
 # Import slot generator functions
 from services.slot_generator import generate_daily_slots, initialize_machines
@@ -16,6 +18,16 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///masbana.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-change-in-production')
+
+# Email Configuration
+app.config['MAIL_SERVER'] = 'smtp.mailersend.net'
+app.config['MAIL_PORT'] = 2525
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = 'MS_IP6K3T@fpserror.casa'
+app.config['MAIL_PASSWORD'] = 'mssp.jp0mMcL.vywj2lp3r6m47oqz.kM1DegQ'
+app.config['MAIL_DEFAULT_SENDER'] = 'noreply@fpserror.casa'
+
+mail = Mail(app)
 
 db.init_app(app)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
@@ -85,6 +97,356 @@ scheduler.add_job(
     replace_existing=True
 )
 
+
+def send_async_email(app, msg):
+    """Send email asynchronously"""
+    with app.app_context():
+        try:
+            print(f"=== ATTEMPTING TO SEND EMAIL ===")
+            print(f"From: {msg.sender}")
+            print(f"To: {msg.recipients}")
+            print(f"Subject: {msg.subject}")
+            print(f"SMTP Server: {app.config['MAIL_SERVER']}")
+            print(f"SMTP Port: {app.config['MAIL_PORT']}")
+            print(f"SMTP Username: {app.config['MAIL_USERNAME']}")
+
+            mail.send(msg)
+            print(f"✅ Email sent successfully to {msg.recipients}")
+        except Exception as e:
+            print(f"❌ Failed to send email: {str(e)}")
+            print(f"Error type: {type(e).__name__}")
+            import traceback
+            traceback.print_exc()
+
+
+def send_email(subject, recipients, text_body, html_body):
+    """Send email with both text and HTML versions"""
+    print(f"\n=== SEND_EMAIL FUNCTION CALLED ===")
+    print(f"Subject: {subject}")
+    print(f"Recipients: {recipients}")
+
+    try:
+        msg = Message(subject, recipients=recipients)
+        msg.body = text_body
+        msg.html = html_body
+        print(f"Message object created successfully")
+
+        # Send asynchronously to avoid blocking the request
+        Thread(target=send_async_email, args=(app, msg)).start()
+        print(f"Email thread started")
+    except Exception as e:
+        print(f"❌ Error in send_email: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+
+def send_booking_confirmation_email(user, booking, slot):
+    """Send booking confirmation email to user"""
+    subject = f"Booking Confirmed - Ticket #{booking.ticket_id}"
+
+    # Format time for display
+    start_time = slot.start_time.strftime("%I:%M %p")
+    end_time = slot.end_time.strftime("%I:%M %p")
+    date = slot.date.strftime("%B %d, %Y")
+
+    # Text version
+    text_body = f"""
+Hello {user.full_name},
+
+Your laundry booking has been confirmed!
+
+Booking Details:
+- Ticket ID: {booking.ticket_id}
+- Date: {date}
+- Time: {start_time} - {end_time}
+- Machine Pair: {slot.pair_id}
+- Load Type: {booking.load_type.value.replace('_', ' ').title()}
+- Machines Used: {booking.machines_used}
+
+Please arrive on time and present your ticket ID at the laundry facility.
+
+Important Reminders:
+- Arrive at least 5 minutes before your scheduled time
+- Bring your laundry detergent and fabric softener
+- Maximum load capacity per machine: 10kg
+- Don't forget to collect your laundry after the cycle
+
+Thank you for using our laundry service!
+
+Best regards,
+Laundry Management Team
+"""
+
+    # HTML version
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }}
+        .header {{
+            background-color: #4CAF50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+        }}
+        .content {{
+            background-color: white;
+            padding: 30px;
+            border-radius: 0 0 8px 8px;
+        }}
+        .ticket-box {{
+            background-color: #e8f5e9;
+            border-left: 4px solid #4CAF50;
+            padding: 20px;
+            margin: 20px 0;
+        }}
+        .detail-row {{
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }}
+        .detail-label {{
+            font-weight: bold;
+            color: #666;
+        }}
+        .detail-value {{
+            color: #333;
+        }}
+        .reminder-box {{
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+        }}
+        .footer {{
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 12px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧺 Booking Confirmed!</h1>
+        </div>
+        <div class="content">
+            <p>Hello <strong>{user.full_name}</strong>,</p>
+            <p>Your laundry booking has been confirmed successfully!</p>
+
+            <div class="ticket-box">
+                <h2 style="margin-top: 0; color: #4CAF50;">Booking Details</h2>
+                <div class="detail-row">
+                    <span class="detail-label">🎫 Ticket ID:</span>
+                    <span class="detail-value"><strong>{booking.ticket_id}</strong></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">📅 Date:</span>
+                    <span class="detail-value">{date}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">🕐 Time:</span>
+                    <span class="detail-value">{start_time} - {end_time}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">🔧 Machine Pair:</span>
+                    <span class="detail-value">Pair #{slot.pair_id}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">🧺 Load Type:</span>
+                    <span class="detail-value">{booking.load_type.value.replace('_', ' ').title()}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">🔢 Machines Used:</span>
+                    <span class="detail-value">{booking.machines_used}</span>
+                </div>
+            </div>
+
+            <div class="reminder-box">
+                <h3 style="margin-top: 0;">⚠️ Important Reminders:</h3>
+                <ul>
+                    <li>Arrive at least <strong>5 minutes before</strong> your scheduled time</li>
+                    <li>Bring your <strong>laundry detergent</strong> and fabric softener</li>
+                    <li>Maximum load capacity per machine: <strong>10kg</strong></li>
+                    <li>Present your <strong>Ticket ID</strong> at the facility</li>
+                    <li>Don't forget to <strong>collect your laundry</strong> after the cycle</li>
+                </ul>
+            </div>
+
+            <p>Thank you for using our laundry service!</p>
+            <p><strong>Best regards,</strong><br>Laundry Management Team</p>
+        </div>
+        <div class="footer">
+            <p>This is an automated message, please do not reply to this email.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+    send_email(subject, [user.email], text_body, html_body)
+
+
+def send_booking_completed_email(user, booking, slot):
+    """Send booking completion notification email to user"""
+    subject = f"Laundry Completed - Ticket #{booking.ticket_id}"
+
+    # Format time for display
+    start_time = slot.start_time.strftime("%I:%M %p")
+    end_time = slot.end_time.strftime("%I:%M %p")
+    date = slot.date.strftime("%B %d, %Y")
+
+    # Text version
+    text_body = f"""
+Hello {user.full_name},
+
+Good news! Your laundry has been completed and is ready for pickup.
+
+Booking Details:
+- Ticket ID: {booking.ticket_id}
+- Date: {date}
+- Time Slot: {start_time} - {end_time}
+- Machine Pair: {slot.pair_id}
+- Load Type: {booking.load_type.value.replace('_', ' ').title()}
+
+Please collect your laundry as soon as possible.
+
+⏰ Reminder: Laundry left uncollected for more than 2 hours may be removed to free up space.
+
+Thank you for using our laundry service!
+
+Best regards,
+Laundry Management Team
+"""
+
+    # HTML version
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }}
+        .header {{
+            background-color: #2196F3;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+        }}
+        .content {{
+            background-color: white;
+            padding: 30px;
+            border-radius: 0 0 8px 8px;
+        }}
+        .completed-box {{
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }}
+        .detail-row {{
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }}
+        .detail-label {{
+            font-weight: bold;
+            color: #666;
+        }}
+        .detail-value {{
+            color: #333;
+        }}
+        .warning-box {{
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+        }}
+        .footer {{
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+            font-size: 12px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✅ Laundry Completed!</h1>
+        </div>
+        <div class="content">
+            <p>Hello <strong>{user.full_name}</strong>,</p>
+
+            <div class="completed-box">
+                <h2 style="margin: 0; color: #2196F3;">🎉 Your laundry is ready for pickup!</h2>
+            </div>
+
+            <h3>Booking Details:</h3>
+            <div class="detail-row">
+                <span class="detail-label">🎫 Ticket ID:</span>
+                <span class="detail-value"><strong>{booking.ticket_id}</strong></span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">📅 Date:</span>
+                <span class="detail-value">{date}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">🕐 Time Slot:</span>
+                <span class="detail-value">{start_time} - {end_time}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">🔧 Machine Pair:</span>
+                <span class="detail-value">Pair #{slot.pair_id}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">🧺 Load Type:</span>
+                <span class="detail-value">{booking.load_type.value.replace('_', ' ').title()}</span>
+            </div>
+
+            <div class="warning-box">
+                <h3 style="margin-top: 0;">⏰ Important Reminder:</h3>
+                <p style="margin: 0;">Please collect your laundry as soon as possible. Laundry left uncollected for more than <strong>2 hours</strong> may be removed to free up space for other users.</p>
+            </div>
+
+            <p>Thank you for using our laundry service!</p>
+            <p><strong>Best regards,</strong><br>Laundry Management Team</p>
+        </div>
+        <div class="footer">
+            <p>This is an automated message, please do not reply to this email.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+    send_email(subject, [user.email], text_body, html_body)
 
 # Authentication decorator
 def token_required(f):
@@ -558,6 +920,14 @@ def create_booking(current_user):
     db.session.add(new_booking)
     db.session.commit()
 
+    # Send confirmation email
+    try:
+        send_booking_confirmation_email(current_user, new_booking, slot)
+        print(f"Booking confirmation email sent to {current_user.email}")
+    except Exception as e:
+        print(f"Failed to send booking confirmation email: {str(e)}")
+        # Don't fail the booking if email fails
+
     return jsonify({
         'message': 'Booking created successfully',
         'ticket_id': new_booking.ticket_id,
@@ -568,6 +938,7 @@ def create_booking(current_user):
         }
     }), 201
 
+
 @app.route('/api/bookings/<int:booking_id>', methods=['PUT'])
 @token_required
 def update_booking(current_user, booking_id):
@@ -577,12 +948,24 @@ def update_booking(current_user, booking_id):
         return jsonify({'message': 'Unauthorized'}), 403
 
     data = request.get_json()
+    old_status = booking.status
+
     if 'status' in data:
         booking.status = BookingStatus(data['status'])
     if 'drop_off_time' in data:
         booking.drop_off_time = datetime.fromisoformat(data['drop_off_time'])
 
     db.session.commit()
+
+    # Send completion email when status changes to COMPLETED
+    if 'status' in data and booking.status == BookingStatus.COMPLETED and old_status != BookingStatus.COMPLETED:
+        try:
+            user = User.query.get(booking.user_id)
+            slot = booking.time_slot
+            send_booking_completed_email(user, booking, slot)
+            print(f"Booking completion email sent to {user.email}")
+        except Exception as e:
+            print(f"Failed to send booking completion email: {str(e)}")
 
     return jsonify({'message': 'Booking updated'})
 
